@@ -340,71 +340,84 @@ public final class HTMLHighlighter implements Serializable {
     }
 
     public void startElement(String uri, String localName, String qName, Attributes atts)
-        throws SAXException {
-      TagAction ta = TAG_ACTIONS.get(localName);
-      if (ta != null) {
-        ta.beforeStart(this, localName);
-      }
-
-      // HACK: remove existing highlight
-      boolean ignoreAttrs = false;
-      if ("SPAN".equalsIgnoreCase(localName)) {
-        String classVal = atts.getValue("class");
-        if ("x-boilerpipe-mark1".equals(classVal)) {
-          ignoreAttrs = true;
+          throws SAXException {
+        TagAction ta = TAG_ACTIONS.get(localName);
+        if (ta != null) {
+          ta.beforeStart(this, localName);
         }
-      }
 
-      try {
-        if (inIgnorableElement == 0) {
-          if (outputHighlightOnly) {
-            // boolean highlight = contentBitSet
-            // .get(characterElementIdx);
-
-            // if (!highlight) {
-            // return;
-            // }
-          }
-
-          final Set<String> whitelistAttributes;
-          if (tagWhitelist == null) {
-            whitelistAttributes = null;
-          } else {
-            whitelistAttributes = tagWhitelist.get(qName);
-            if (whitelistAttributes == null) {
+        // HACK: remove existing highlight
+        boolean ignoreAttrs = isSpanWithHighlightClass(localName, atts);
+    
+        try {
+          if (inIgnorableElement == 0) {
+            if (outputHighlightOnly) {
+              // boolean highlight = contentBitSet
+              // .get(characterElementIdx);
+    
+              // if (!highlight) {
+              // return;
+              // }
+            }
+    
+            Set<String> whitelistAttributes = getWhitelistAttributes(qName);
+            if (whitelistAttributes == null && tagWhitelist != null) {
               // skip
               return;
             }
+    
+            appendStartElement(qName, ignoreAttrs, atts, whitelistAttributes);
           }
-
-          html.append('<');
-          html.append(qName);
-          if (!ignoreAttrs) {
-            final int numAtts = atts.getLength();
-            for (int i = 0; i < numAtts; i++) {
-              final String attr = atts.getQName(i);
-
-              if (whitelistAttributes != null && !whitelistAttributes.contains(attr)) {
-                // skip
-                continue;
-              }
-
-              final String value = atts.getValue(i);
-              html.append(' ');
-              html.append(attr);
-              html.append("=\"");
-              html.append(xmlEncode(value));
-              html.append("\"");
-            }
+        } finally {
+          if (ta != null) {
+            ta.afterStart(this, localName);
           }
-          html.append('>');
-        }
-      } finally {
-        if (ta != null) {
-          ta.afterStart(this, localName);
         }
       }
-    }
+    
+      private boolean isSpanWithHighlightClass(String localName, Attributes atts) {
+        if ("SPAN".equalsIgnoreCase(localName)) {
+          String classVal = atts.getValue("class");
+          if ("x-boilerpipe-mark1".equals(classVal)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    
+      private Set<String> getWhitelistAttributes(String qName) {
+        if (tagWhitelist == null) {
+          return null;
+        } else {
+          return tagWhitelist.get(qName);
+        }
+      }
+    
+      private void appendStartElement(String qName, boolean ignoreAttrs, Attributes atts,
+          Set<String> whitelistAttributes) {
+        html.append('<');
+        html.append(qName);
+        if (!ignoreAttrs) {
+          final int numAtts = atts.getLength();
+          for (int i = 0; i < numAtts; i++) {
+            final String attr = atts.getQName(i);
+    
+            if (whitelistAttributes != null && !whitelistAttributes.contains(attr)) {
+              // skip
+              continue;
+            }
+    
+            final String value = atts.getValue(i);
+            html.append(' ');
+            html.append(attr);
+            html.append("=\"");
+            html.append(xmlEncode(value));
+            html.append("\"");
+          }
+        }
+        html.append('>');
+      }
+//Refactoring end
 
     public void endElement(String uri, String localName, String qName) throws SAXException {
       TagAction ta = TAG_ACTIONS.get(localName);
