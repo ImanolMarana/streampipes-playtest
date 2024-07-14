@@ -60,63 +60,75 @@ public final class BlockProximityFusion implements BoilerpipeFilter {
   }
 
   public boolean process(TextDocument doc) throws BoilerpipeProcessingException {
-    List<TextBlock> textBlocks = doc.getTextBlocks();
-    if (textBlocks.size() < 2) {
-      return false;
-    }
-
-    boolean changes = false;
-    TextBlock prevBlock;
-
-    int offset;
-    if (contentOnly) {
-      prevBlock = null;
-      offset = 0;
-      for (TextBlock tb : textBlocks) {
-        offset++;
-        if (tb.isContent()) {
-          prevBlock = tb;
-          break;
-        }
-      }
-      if (prevBlock == null) {
-        return false;
-      }
-    } else {
-      prevBlock = textBlocks.get(0);
-      offset = 1;
-    }
-
-    for (Iterator<TextBlock> it = textBlocks.listIterator(offset); it.hasNext(); ) {
-      TextBlock block = it.next();
-      if (!block.isContent()) {
-        prevBlock = block;
-        continue;
-      }
-      int diffBlocks = block.getOffsetBlocksStart() - prevBlock.getOffsetBlocksEnd() - 1;
-      if (diffBlocks <= maxBlocksDistance) {
-        boolean ok = true;
-        if (contentOnly) {
-          if (!prevBlock.isContent() || !block.isContent()) {
-            ok = false;
-          }
-        }
-        if (ok && sameTagLevelOnly && prevBlock.getTagLevel() != block.getTagLevel()) {
-          ok = false;
-        }
-        if (ok) {
-          prevBlock.mergeNext(block);
-          it.remove();
-          changes = true;
-        } else {
-          prevBlock = block;
-        }
-      } else {
-        prevBlock = block;
-      }
-    }
-
-    return changes;
+  List<TextBlock> textBlocks = doc.getTextBlocks();
+  if (textBlocks.size() < 2) {
+    return false;
   }
+
+  return mergeBlocks(textBlocks);
+}
+
+private boolean mergeBlocks(List<TextBlock> textBlocks) {
+  boolean changes = false;
+  TextBlock prevBlock = findFirstContentBlock(textBlocks);
+  if (prevBlock == null) {
+    return false;
+  }
+
+  int offset = contentOnly ? findFirstContentBlockIndex(textBlocks) + 1 : 1;
+
+  for (Iterator<TextBlock> it = textBlocks.listIterator(offset); it.hasNext(); ) {
+    TextBlock block = it.next();
+    if (!block.isContent()) {
+      prevBlock = block;
+      continue;
+    }
+
+    if (shouldMergeBlocks(prevBlock, block)) {
+      prevBlock.mergeNext(block);
+      it.remove();
+      changes = true;
+    } else {
+      prevBlock = block;
+    }
+  }
+  return changes;
+}
+
+private TextBlock findFirstContentBlock(List<TextBlock> textBlocks) {
+  if (!contentOnly) {
+    return textBlocks.get(0);
+  }
+  for (TextBlock tb : textBlocks) {
+    if (tb.isContent()) {
+      return tb;
+    }
+  }
+  return null;
+}
+
+private int findFirstContentBlockIndex(List<TextBlock> textBlocks) {
+  int offset = 0;
+  for (TextBlock tb : textBlocks) {
+    if (tb.isContent()) {
+      return offset;
+    }
+    offset++;
+  }
+  return offset;
+}
+
+private boolean shouldMergeBlocks(TextBlock prevBlock, TextBlock block) {
+  int diffBlocks = block.getOffsetBlocksStart() - prevBlock.getOffsetBlocksEnd() - 1;
+  if (diffBlocks > maxBlocksDistance) {
+    return false;
+  }
+  if (contentOnly && (!prevBlock.isContent() || !block.isContent())) {
+    return false;
+  }
+  return !sameTagLevelOnly || prevBlock.getTagLevel() == block.getTagLevel();
+}
+
+//Refactoring end
 
 }
